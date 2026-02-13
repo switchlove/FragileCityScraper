@@ -2,7 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
 require('dotenv').config();
-const FragileCityDatabase = require('./database');
+const FragileCityDatabase = require('./lib/database');
 
 const BASE_URL = 'https://fragile.city';
 
@@ -665,7 +665,7 @@ class FragileCityScraper {
      */
     async saveToFile(data, filename) {
         try {
-            const filepath = `./${filename}`;
+            const filepath = `./data/${filename}`;
             await fs.writeFile(filepath, JSON.stringify(data, null, 2));
             console.log(`Data saved to ${filepath}`);
         } catch (error) {

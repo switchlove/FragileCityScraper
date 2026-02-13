@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "test": "node index.js",
-    "query": "node query.js",
+    "query": "node lib/query.js",
     "scrape": "./run-scraper.sh"
   },
   "keywords": [

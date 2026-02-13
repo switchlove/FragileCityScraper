@@ -10,13 +10,13 @@ node_modules/
 *.db-wal
 
 # JSON files
-cities.json
-city_details.json
-wars.json
 package-lock.json
 
 # Logs
 logs/
+
+# Data backups
+data/
 
 # OS files
 .DS_Store
