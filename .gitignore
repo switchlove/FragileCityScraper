@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# JSON files
+cities.json
+city_details.json
+wars.json
+package-lock.json
+
+# Logs
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
