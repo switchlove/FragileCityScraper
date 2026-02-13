@@ -1,0 +1,21 @@
+{
+  "name": "fragile-city-scraper",
+  "version": "1.0.0",
+  "description": "Web scraper for fragile.city MMO game",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js"
+  },
+  "keywords": [
+    "scraper",
+    "fragile.city",
+    "web-scraping"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
