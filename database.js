@@ -76,39 +76,10 @@ class FragileCityDatabase {
                 day INTEGER,
                 season TEXT,
                 citizens INTEGER,
+                stats TEXT,
+                resources TEXT,
+                buildings TEXT,
                 FOREIGN KEY (scrape_run_id) REFERENCES scrape_runs(id)
-            )
-        `);
-
-        await this.client.execute(`
-            CREATE TABLE IF NOT EXISTS city_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                city_detail_id INTEGER NOT NULL,
-                stat_name TEXT NOT NULL,
-                current_value REAL,
-                max_value REAL,
-                FOREIGN KEY (city_detail_id) REFERENCES city_details(id)
-            )
-        `);
-
-        await this.client.execute(`
-            CREATE TABLE IF NOT EXISTS city_resources (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                city_detail_id INTEGER NOT NULL,
-                resource_name TEXT NOT NULL,
-                current_amount REAL,
-                max_amount REAL,
-                FOREIGN KEY (city_detail_id) REFERENCES city_details(id)
-            )
-        `);
-
-        await this.client.execute(`
-            CREATE TABLE IF NOT EXISTS city_buildings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                city_detail_id INTEGER NOT NULL,
-                building_name TEXT NOT NULL,
-                count INTEGER,
-                FOREIGN KEY (city_detail_id) REFERENCES city_details(id)
             )
         `);
 
@@ -235,15 +206,15 @@ class FragileCityDatabase {
     }
 
     /**
-     * Save city details with stats, resources, and buildings
+     * Save city details with stats, resources, and buildings as JSON
      */
     async saveCityDetails(runId, cityDetails) {
         for (const city of cityDetails) {
-            const result = await this.client.execute({
+            await this.client.execute({
                 sql: `
                     INSERT INTO city_details 
-                    (scrape_run_id, name, region, year, day, season, citizens)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (scrape_run_id, name, region, year, day, season, citizens, stats, resources, buildings)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `,
                 args: [
                     runId,
@@ -252,63 +223,12 @@ class FragileCityDatabase {
                     city.year || 0,
                     city.day || 0,
                     city.season || null,
-                    city.citizens || 0
+                    city.citizens || 0,
+                    JSON.stringify(city.stats || {}),
+                    JSON.stringify(city.resources || {}),
+                    JSON.stringify(city.buildings || {})
                 ]
             });
-
-            const cityDetailId = result.lastInsertRowid;
-
-            // Save stats
-            if (city.stats) {
-                for (const [statName, statValue] of Object.entries(city.stats)) {
-                    await this.client.execute({
-                        sql: `
-                            INSERT INTO city_stats 
-                            (city_detail_id, stat_name, current_value, max_value)
-                            VALUES (?, ?, ?, ?)
-                        `,
-                        args: [
-                            cityDetailId,
-                            statName,
-                            statValue.current || 0,
-                            statValue.max || 0
-                        ]
-                    });
-                }
-            }
-
-            // Save resources
-            if (city.resources) {
-                for (const [resourceName, resourceValue] of Object.entries(city.resources)) {
-                    await this.client.execute({
-                        sql: `
-                            INSERT INTO city_resources 
-                            (city_detail_id, resource_name, current_amount, max_amount)
-                            VALUES (?, ?, ?, ?)
-                        `,
-                        args: [
-                            cityDetailId,
-                            resourceName,
-                            resourceValue.current || 0,
-                            resourceValue.max || 0
-                        ]
-                    });
-                }
-            }
-
-            // Save buildings
-            if (city.buildings) {
-                for (const [buildingName, count] of Object.entries(city.buildings)) {
-                    await this.client.execute({
-                        sql: `
-                            INSERT INTO city_buildings 
-                            (city_detail_id, building_name, count)
-                            VALUES (?, ?, ?)
-                        `,
-                        args: [cityDetailId, buildingName, count || 0]
-                    });
-                }
-            }
         }
     }
 

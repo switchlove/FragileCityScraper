@@ -84,21 +84,27 @@ async function runExamples() {
         // 6. Building counts for a specific city
         console.log('\n6. Building Inventory (Laodicea - latest scrape):');
         const buildings = await db.client.execute(`
-            SELECT cb.building_name, cb.count
-            FROM city_buildings cb
-            JOIN city_details cd ON cb.city_detail_id = cd.id
-            JOIN scrape_runs sr ON cd.scrape_run_id = sr.id
+            SELECT cd.name, cd.buildings
+            FROM city_details cd
             WHERE cd.name = 'Laodicea'
-            AND sr.id = (SELECT id FROM scrape_runs ORDER BY scraped_at DESC LIMIT 1)
-            AND cb.count > 0
-            ORDER BY cb.count DESC
-            LIMIT 10
+            AND cd.scrape_run_id = (SELECT id FROM scrape_runs ORDER BY scraped_at DESC LIMIT 1)
+            LIMIT 1
         `);
         
-        if (buildings.rows.length > 0) {
-            buildings.rows.forEach(b => {
-                console.log(`   ${b.building_name}: ${b.count}`);
-            });
+        if (buildings.rows.length > 0 && buildings.rows[0].buildings) {
+            const buildingData = JSON.parse(buildings.rows[0].buildings);
+            const sortedBuildings = Object.entries(buildingData)
+                .filter(([_, count]) => count > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+            
+            if (sortedBuildings.length > 0) {
+                sortedBuildings.forEach(([name, count]) => {
+                    console.log(`   ${name}: ${count}`);
+                });
+            } else {
+                console.log('   No buildings found');
+            }
         } else {
             console.log('   No data found (try another city name)');
         }
