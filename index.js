@@ -1,6 +1,8 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs').promises;
+require('dotenv').config();
+const FragileCityDatabase = require('./database');
 
 const BASE_URL = 'https://fragile.city';
 
@@ -14,6 +16,18 @@ class FragileCityScraper {
         this.retryDelay = options.retryDelay || 1000;
         this.concurrency = options.concurrency || 5; // Parallel requests
         this.requestDelay = options.requestDelay || 100; // Delay between batches (ms)
+        
+        // Database support (optional)
+        this.database = null;
+        if (options.enableDatabase !== false) {
+            const dbConfig = process.env.TURSO_DATABASE_URL ? {
+                url: process.env.TURSO_DATABASE_URL,
+                authToken: process.env.TURSO_AUTH_TOKEN
+            } : {
+                url: 'file:fragile-city.db' // Local SQLite fallback
+            };
+            this.database = new FragileCityDatabase(dbConfig);
+        }
     }
 
     /**
@@ -721,21 +735,55 @@ class FragileCityScraper {
             
             const scrapeDuration = ((Date.now() - startTime) / 1000).toFixed(2);
             
+            const metadata = {
+                scrapedAt: new Date().toISOString(),
+                version: this.version,
+                totalCities: cityData.cities.length,
+                successfulScrapes: cityDetails.length,
+                failedScrapes: cityErrors.length,
+                scrapeDuration: `${scrapeDuration}s`,
+                concurrency: this.concurrency,
+                averageTimePerCity: `${(parseFloat(scrapeDuration) / cityDetails.length).toFixed(2)}s`,
+                errors: this.errors,
+                warnings: this.warnings
+            };
+            
             await this.saveToFile({
                 cities: cityDetails,
-                metadata: {
-                    scrapedAt: new Date().toISOString(),
-                    version: this.version,
-                    totalCities: cityData.cities.length,
-                    successfulScrapes: cityDetails.length,
-                    failedScrapes: cityErrors.length,
-                    scrapeDuration: `${scrapeDuration}s`,
-                    concurrency: this.concurrency,
-                    averageTimePerCity: `${(parseFloat(scrapeDuration) / cityDetails.length).toFixed(2)}s`,
-                    errors: this.errors,
-                    warnings: this.warnings
-                }
+                metadata: metadata
             }, 'city_details.json');
+
+            // Save to database if enabled
+            if (this.database) {
+                console.log('\nSaving to database...');
+                try {
+                    await this.database.initialize();
+                    
+                    // Save scrape run metadata
+                    const runId = await this.database.saveScrapeRun(metadata);
+                    console.log(`  ✓ Scrape run saved (ID: ${runId})`);
+                    
+                    // Save global stats
+                    await this.database.saveGlobalStats(runId, cityData.globalStats);
+                    console.log(`  ✓ Global stats saved`);
+                    
+                    // Save cities
+                    await this.database.saveCities(runId, cityData.cities);
+                    console.log(`  ✓ ${cityData.cities.length} cities saved`);
+                    
+                    // Save wars
+                    await this.database.saveWars(runId, warsWithValidation);
+                    console.log(`  ✓ ${warsWithValidation.length} wars saved`);
+                    
+                    // Save city details (includes stats, resources, buildings)
+                    await this.database.saveCityDetails(runId, cityDetails);
+                    console.log(`  ✓ ${cityDetails.length} city details saved`);
+                    
+                } catch (dbError) {
+                    console.error('Database error:', dbError.message);
+                    this.errors.push(`Database save failed: ${dbError.message}`);
+                }
+            }
 
             const activeWars = warsWithValidation.filter(w => w.bothActive).length;
             
@@ -745,6 +793,12 @@ class FragileCityScraper {
             console.log(`Wars with both cities active: ${activeWars}`);
             console.log(`City details scraped: ${cityDetails.length}`);
             console.log(`Duration: ${scrapeDuration}s`);
+            if (this.database) {
+                const dbType = process.env.TURSO_DATABASE_URL?.startsWith('libsql://') 
+                    ? 'Turso Cloud' 
+                    : 'Local SQLite';
+                console.log(`Database: ${dbType}`);
+            }
             if (this.errors.length > 0) {
                 console.log(`Errors encountered: ${this.errors.length}`);
             }

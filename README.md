@@ -13,9 +13,11 @@ A Node.js web scraper for [fragile.city](https://fragile.city/), an MMO game abo
   - Resources (27 resource types with current/max values)
   - Buildings (all building types and counts from Transit to Storage)
 - Saves data to structured JSON files with metadata tracking
+- **Database integration** with Turso.io (libSQL) or local SQLite for historical tracking
 - **Parallel processing** with configurable concurrency (~3x faster)
 - **Automatic retry logic** with exponential backoff for network resilience
 - **Data validation** with warnings for incomplete or invalid data
+- **Hourly cron scheduling** for automated tracking
 - Comprehensive error handling and logging
 - Smart rate limiting to respect server resources
 
@@ -48,8 +50,10 @@ const scraper = new FragileCityScraper();
 
 // Custom options with retry configuration
 const scraper = new FragileCityScraper({
-    maxRetries: 3,      // Number of retry attempts (default: 3)
-    retryDelay: 1000    // Initial retry delay in ms (default: 1000)
+    maxRetries: 3,        // Number of retry attempts (default: 3)
+    retryDelay: 1000,     // Initial retry delay in ms (default: 1000)
+    concurrency: 5,       // Parallel requests (default: 5)
+    enableDatabase: true  // Enable database storage (default: true)
 });
 
 // Scrape all cities
@@ -67,6 +71,37 @@ scraper.runFullScrape();
 ```
 
 ## Configuration
+
+### Database Setup
+
+The scraper supports both **Turso.io** (cloud SQLite) and **local SQLite** for historical tracking:
+
+1. **Copy environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **For Turso Cloud (recommended for production):**
+   - Sign up at [turso.tech](https://turso.tech)
+   - Create a database: `turso db create fragile-city`
+   - Get your credentials: `turso db show fragile-city`
+   - Update `.env`:
+     ```
+     TURSO_DATABASE_URL=libsql://your-database.turso.io
+     TURSO_AUTH_TOKEN=your-token-here
+     ```
+
+3. **For Local SQLite (development):**
+   - Update `.env`:
+     ```
+     TURSO_DATABASE_URL=file:fragile-city.db
+     ```
+   - Database file will be created automatically
+
+4. **Disable database** (JSON only):
+   ```javascript
+   const scraper = new FragileCityScraper({ enableDatabase: false });
+   ```
 
 ### Retry Options
 
@@ -260,6 +295,84 @@ Each output file includes comprehensive metadata:
 - **scrapeDuration**: Total time taken
 - **concurrency**: Parallel requests used
 - **averageTimePerCity**: Average scrape time per city
+
+## Database Schema
+
+When database is enabled, data is stored in the following tables:
+
+### scrape_runs
+- Metadata for each scrape execution
+- Tracks duration, success rate, errors, warnings
+
+### global_stats
+- Global game statistics per scrape
+- Year, day, total cities, citizens, pollution
+
+### cities
+- City list data per scrape
+- Name, pollution, citizens, verification status
+
+### city_details
+- Detailed city information per scrape
+- Region, year, day, season, citizens
+
+### city_stats
+- City statistics (15 metrics per city)
+- Pollution, housing, jobs, energy, money, happiness, etc.
+
+### city_resources
+- Resource inventory (27 resource types)
+- Current and maximum amounts
+
+### city_buildings
+- Building counts (73-76 building types)
+- Includes zero-count buildings
+
+### wars
+- Active wars data
+- Attacker, defender, missiles, activity status
+
+## Database Queries
+
+View example queries and analytics:
+
+```bash
+# Run example queries
+node query.js
+
+# Custom SQL query
+node query.js --query "SELECT * FROM scrape_runs ORDER BY scraped_at DESC LIMIT 5"
+```
+
+Example queries include:
+- Latest scrape statistics
+- City growth history
+- Top polluters
+- Building inventories
+- War tracking
+- Performance metrics
+
+## Scheduled Execution
+
+See [CRON_SETUP.md](CRON_SETUP.md) for instructions on setting up hourly automated scraping.
+
+### Quick Setup (Hourly Cron)
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line for hourly execution (update path to your install location)
+0 * * * * /path/to/fragile-city-scraper/run-scraper.sh
+```
+
+### Manual Execution with Logging
+
+```bash
+./run-scraper.sh
+```
+
+Logs are saved to `logs/scrape-YYYYMMDD-HHMM.log`
 - **errors**: Array of errors encountered
 - **warnings**: Array of validation warnings
 
